@@ -1,19 +1,31 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { fetchPurchases, fetchCategories, deletePurchase } from '../api';
-import { ShoppingBag, Filter, ChevronDown, Trash2 } from 'lucide-react';
+import { fetchPurchases, fetchCategories, deletePurchase, updatePurchase } from '../api';
+import { ShoppingBag, Filter, ChevronDown, Trash2, Pencil, X } from 'lucide-react';
 
 export function Dashboard() {
     const [purchases, setPurchases] = useState([]);
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedCat, setSelectedCat] = useState('All');
+    const [expandedImage, setExpandedImage] = useState(null);
+    const [editingProduct, setEditingProduct] = useState(null);
+    const [editForm, setEditForm] = useState({
+        name: '',
+        store: '',
+        date: '',
+        price: '',
+        quantity: '',
+        unit: 'g',
+        category_id: ''
+    });
+    const [savingEdit, setSavingEdit] = useState(false);
 
     useEffect(() => {
         loadData();
     }, []);
 
     const loadData = () => {
-        Promise.all([fetchPurchases(), fetchCategories()])
+        return Promise.all([fetchPurchases(), fetchCategories()])
             .then(([purchasesData, categoriesData]) => {
                 setPurchases(purchasesData || []);
                 setCategories(categoriesData || []);
@@ -30,6 +42,49 @@ export function Dashboard() {
             } catch (error) {
                 alert('Failed to delete purchase');
             }
+        }
+    };
+
+    const openEditModal = (purchase) => {
+        setEditingProduct(purchase);
+        setEditForm({
+            name: purchase.name || '',
+            store: purchase.store || '',
+            date: purchase.date ? new Date(purchase.date).toISOString().split('T')[0] : '',
+            price: purchase.price ?? '',
+            quantity: purchase.quantity ?? '',
+            unit: purchase.unit || 'g',
+            category_id: purchase.category_id ?? ''
+        });
+    };
+
+    const closeEditModal = () => {
+        setEditingProduct(null);
+        setSavingEdit(false);
+    };
+
+    const handleEditChange = (e) => {
+        const { name, value } = e.target;
+        setEditForm(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSaveEdit = async (e) => {
+        e.preventDefault();
+        if (!editingProduct) return;
+        setSavingEdit(true);
+
+        try {
+            const data = new FormData();
+            Object.keys(editForm).forEach((key) => {
+                data.append(key, editForm[key]);
+            });
+
+            await updatePurchase(editingProduct.id, data);
+            await loadData();
+            closeEditModal();
+        } catch (error) {
+            alert(`Failed to update purchase: ${error.message}`);
+            setSavingEdit(false);
         }
     };
 
@@ -126,8 +181,12 @@ export function Dashboard() {
                                         {p.image_path ? (
                                             <img
                                                 src={`http://localhost:8000/uploads/${p.image_path}`}
-                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 cursor-zoom-in"
                                                 alt={p.name}
+                                                onClick={() => setExpandedImage({
+                                                    url: `http://localhost:8000/uploads/${p.image_path}`,
+                                                    name: p.name
+                                                })}
                                             />
                                         ) : (
                                             <div className="flex flex-col items-center justify-center text-slate-400 p-4 text-center">
@@ -143,6 +202,15 @@ export function Dashboard() {
                                             title="Delete Purchase"
                                         >
                                             <Trash2 size={16} />
+                                        </button>
+
+                                        {/* Edit Button */}
+                                        <button
+                                            onClick={() => openEditModal(p)}
+                                            className="absolute top-3 right-3 p-2 bg-white/90 dark:bg-slate-900/90 rounded-full text-slate-600 hover:text-slate-800 hover:bg-white dark:hover:bg-slate-800 transition-colors shadow-sm opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                            title="Edit Purchase"
+                                        >
+                                            <Pencil size={16} />
                                         </button>
                                     </div>
 
@@ -197,6 +265,169 @@ export function Dashboard() {
                     </div>
                 )}
             </div>
+
+            {expandedImage && (
+                <div
+                    className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+                    onClick={() => setExpandedImage(null)}
+                >
+                    <div
+                        className="relative max-w-4xl w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            onClick={() => setExpandedImage(null)}
+                            className="absolute top-3 right-3 p-2 rounded-full bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white"
+                            title="Close"
+                        >
+                            <X size={18} />
+                        </button>
+                        <div className="bg-slate-900">
+                            <img
+                                src={expandedImage.url}
+                                alt={expandedImage.name}
+                                className="w-full max-h-[80vh] object-contain"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {editingProduct && (
+                <div
+                    className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+                    onClick={closeEditModal}
+                >
+                    <div
+                        className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-6"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-bold text-slate-800 dark:text-white">Edit Product</h3>
+                            <button
+                                onClick={closeEditModal}
+                                className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200 hover:text-slate-900"
+                                title="Close"
+                                type="button"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveEdit} className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product Name</label>
+                                    <input
+                                        required
+                                        name="name"
+                                        value={editForm.name}
+                                        onChange={handleEditChange}
+                                        className="w-full px-4 py-2 border dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Store</label>
+                                    <input
+                                        required
+                                        name="store"
+                                        value={editForm.store}
+                                        onChange={handleEditChange}
+                                        className="w-full px-4 py-2 border dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+                                <select
+                                    required
+                                    name="category_id"
+                                    value={editForm.category_id}
+                                    onChange={handleEditChange}
+                                    className="w-full px-4 py-2 border dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                >
+                                    <option value="">Select Category</option>
+                                    {categories.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-100 dark:border-slate-700">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div>
+                                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Price</label>
+                                        <input
+                                            type="number" step="0.01"
+                                            required
+                                            name="price"
+                                            value={editForm.price}
+                                            onChange={handleEditChange}
+                                            className="w-full px-3 py-2 border dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Quantity</label>
+                                        <input
+                                            type="number" step="0.01"
+                                            required
+                                            name="quantity"
+                                            value={editForm.quantity}
+                                            onChange={handleEditChange}
+                                            className="w-full px-3 py-2 border dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Unit</label>
+                                        <select
+                                            name="unit"
+                                            value={editForm.unit}
+                                            onChange={handleEditChange}
+                                            className="w-full px-3 py-2 border dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                        >
+                                            <option value="g">g</option>
+                                            <option value="kg">kg</option>
+                                            <option value="ml">ml</option>
+                                            <option value="L">L</option>
+                                            <option value="oz">oz</option>
+                                            <option value="lb">lb</option>
+                                        </select>
+                                    </div>
+                                    <div className="flex flex-col justify-end">
+                                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Date</label>
+                                        <input
+                                            type="date"
+                                            required
+                                            name="date"
+                                            value={editForm.date}
+                                            onChange={handleEditChange}
+                                            className="w-full px-3 py-2 border dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={closeEditModal}
+                                    className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={savingEdit}
+                                    className="px-5 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-60"
+                                >
+                                    {savingEdit ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

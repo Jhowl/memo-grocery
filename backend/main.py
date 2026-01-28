@@ -95,6 +95,39 @@ async def create_purchase(
 def read_purchases(skip: int = 0, limit: int = 100, category_id: int = None, db: Session = Depends(get_db)):
     return crud.get_purchases(db, skip=skip, limit=limit, category_id=category_id)
 
+@app.put("/purchases/{purchase_id}", response_model=schemas.Purchase)
+async def update_purchase(
+    purchase_id: int,
+    name: str = Form(...),
+    store: str = Form(...),
+    date: str = Form(...),
+    price: float = Form(...),
+    quantity: float = Form(...),
+    unit: str = Form(...),
+    category_id: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    from datetime import datetime
+    try:
+        date_obj = datetime.fromisoformat(date.replace('Z', '+00:00'))
+    except ValueError:
+        date_obj = datetime.now()
+
+    purchase_data = schemas.PurchaseCreate(
+        name=name,
+        store=store,
+        date=date_obj,
+        price=price,
+        quantity=quantity,
+        unit=unit,
+        category_id=category_id
+    )
+
+    db_purchase = crud.update_purchase(db=db, purchase_id=purchase_id, purchase=purchase_data)
+    if not db_purchase:
+        raise HTTPException(status_code=404, detail="Purchase not found")
+    return db_purchase
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Anti-Memo Grocery API"}

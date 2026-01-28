@@ -55,3 +55,27 @@ def delete_purchase(db: Session, purchase_id: int):
         db.commit()
         return True
     return False
+
+def update_purchase(db: Session, purchase_id: int, purchase: schemas.PurchaseCreate):
+    db_purchase = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
+    if not db_purchase:
+        return None
+
+    unit_price, std_unit, norm_qty = calculate_unit_price(
+        purchase.price, purchase.quantity, purchase.unit
+    )
+
+    db_purchase.name = purchase.name
+    db_purchase.store = purchase.store
+    db_purchase.date = purchase.date
+    db_purchase.price = purchase.price
+    db_purchase.quantity = purchase.quantity
+    db_purchase.unit = purchase.unit
+    db_purchase.category_id = purchase.category_id
+    db_purchase.normalized_quantity = norm_qty
+    db_purchase.standard_unit = std_unit
+    db_purchase.unit_price = unit_price
+
+    db.commit()
+    db.refresh(db_purchase)
+    return db_purchase

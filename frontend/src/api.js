@@ -48,3 +48,20 @@ export async function deletePurchase(id) {
     if (!res.ok) throw new Error('Failed to delete purchase');
     return res.json();
 }
+
+export async function updatePurchase(id, formData) {
+    const res = await fetch(`${API_URL}/purchases/${id}`, {
+        method: 'PUT',
+        body: formData,
+    });
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const errorMessage = errorData.detail
+            ? (Array.isArray(errorData.detail)
+                ? errorData.detail.map(e => `${e.loc.join('.')} - ${e.msg}`).join(', ')
+                : errorData.detail)
+            : 'Failed to update purchase';
+        throw new Error(errorMessage);
+    }
+    return res.json();
+}
