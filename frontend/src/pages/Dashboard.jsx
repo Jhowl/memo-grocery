@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { fetchPurchases, fetchCategories, deletePurchase, updatePurchase } from '../api';
-import { ShoppingBag, Filter, ChevronDown, Trash2, Pencil, X } from 'lucide-react';
+import { ShoppingBag, Filter, ChevronDown, Trash2, Pencil, X, Search } from 'lucide-react';
 
 export function Dashboard() {
     const [purchases, setPurchases] = useState([]);
@@ -9,6 +9,8 @@ export function Dashboard() {
     const [selectedCat, setSelectedCat] = useState('All');
     const [expandedImage, setExpandedImage] = useState(null);
     const [editingProduct, setEditingProduct] = useState(null);
+    const [expandedCategoryId, setExpandedCategoryId] = useState(null);
+    const [categoryQuery, setCategoryQuery] = useState('');
     const [editForm, setEditForm] = useState({
         name: '',
         store: '',
@@ -43,6 +45,10 @@ export function Dashboard() {
                 alert('Failed to delete purchase');
             }
         }
+    };
+
+    const toggleCategory = (categoryId) => {
+        setExpandedCategoryId(prev => (prev === categoryId ? null : categoryId));
     };
 
     const openEditModal = (purchase) => {
@@ -132,136 +138,256 @@ export function Dashboard() {
         }).sort((a, b) => a.name.localeCompare(b.name));
     }, [purchases, categories, selectedCat]);
 
-    return (
-        <div className="space-y-8">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <h2 className="text-3xl font-bold text-slate-800 dark:text-white">Price Comparison</h2>
+    const filteredGroups = useMemo(() => {
+        if (!categoryQuery.trim()) return groupedPurchases;
+        const query = categoryQuery.trim().toLowerCase();
+        return groupedPurchases.filter(group => group.name.toLowerCase().includes(query));
+    }, [groupedPurchases, categoryQuery]);
 
-                {/* Category Filter */}
-                <div className="relative min-w-[200px]">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Filter className="h-4 w-4 text-gray-400" />
+    return (
+        <div className="space-y-6">
+            <div className="rounded-2xl border border-slate-900/80 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 md:p-6 shadow-[0_0_0_1px_rgba(15,23,42,0.6)]">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div>
+                        <h2 className="text-2xl md:text-3xl font-bold text-slate-100">Price Comparison</h2>
+                        <p className="text-xs md:text-sm text-slate-400 mt-1">Best-price snapshot per category. Expand to see everything.</p>
                     </div>
-                    <select
-                        value={selectedCat}
-                        onChange={(e) => setSelectedCat(e.target.value)}
-                        className="w-full pl-10 pr-8 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none appearance-none cursor-pointer text-slate-700 dark:text-slate-200 transition-colors shadow-sm"
-                    >
-                        <option value="All">All Categories</option>
-                        {categories.map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                    </select>
-                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                        <ChevronDown className="h-4 w-4 text-gray-400" />
+
+                    <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                        <div className="relative flex-1 min-w-[220px]">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <Search className="h-4 w-4 text-slate-500" />
+                            </div>
+                            <input
+                                value={categoryQuery}
+                                onChange={(e) => setCategoryQuery(e.target.value)}
+                                placeholder="Filter categories..."
+                                className="w-full pl-10 pr-3 py-2 bg-slate-900/70 border border-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/60 outline-none text-slate-100 transition-colors"
+                            />
+                        </div>
+                        <div className="relative min-w-[200px]">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <Filter className="h-4 w-4 text-slate-500" />
+                            </div>
+                            <select
+                                value={selectedCat}
+                                onChange={(e) => setSelectedCat(e.target.value)}
+                                className="w-full pl-10 pr-8 py-2 bg-slate-900/70 border border-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/60 outline-none appearance-none cursor-pointer text-slate-100 transition-colors"
+                            >
+                                <option value="All">All Categories</option>
+                                {categories.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <ChevronDown className="h-4 w-4 text-slate-500" />
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Groups Area */}
-            <div className="space-y-12">
-                {groupedPurchases.map(group => (
-                    <div key={group.id} className="space-y-4">
-                        <h3 className="text-xl font-bold text-slate-800 dark:text-white border-b border-slate-200 dark:border-slate-700 pb-2">
-                            {group.name} <span className="text-sm font-normal text-slate-400 ml-2">({group.products.length} items)</span>
-                        </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 gap-6 items-start">
+                {filteredGroups.map(group => {
+                    const isExpanded = expandedCategoryId === group.id;
+                    const bestProduct = group.products[0];
+                    const moreProducts = isExpanded ? group.products.slice(1) : [];
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {group.products.map(p => (
-                                <div key={p.id} className={`bg-white dark:bg-slate-800 rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition-all group flex flex-col relative ${p.isBestPrice ? 'border-green-400 ring-1 ring-green-400 shadow-green-100 dark:shadow-none' : 'border-slate-100 dark:border-slate-700'}`}>
+                    return (
+                        <div
+                            key={group.id}
+                            className="rounded-2xl border border-slate-900/80 bg-slate-950/80 shadow-[0_0_0_1px_rgba(15,23,42,0.5)] self-start"
+                        >
+                            <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-slate-900/70">
+                                <div>
+                                    <h3 className="text-sm font-semibold text-slate-100">{group.name}</h3>
+                                    <p className="text-[11px] text-slate-500">{group.products.length} items</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => toggleCategory(group.id)}
+                                    className="flex items-center gap-1.5 text-[11px] text-slate-300 hover:text-slate-100"
+                                >
+                                    <span>{isExpanded ? 'Hide' : 'View all'}</span>
+                                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                </button>
+                            </div>
 
-                                    {/* Best Price Badge */}
-                                    {p.isBestPrice && (
-                                        <div className="absolute top-0 right-0 z-10 bg-green-500 text-white text-[10px] uppercase font-bold px-3 py-1 rounded-bl-lg shadow-sm">
-                                            Best Price
+                            {bestProduct ? (
+                                <div className="px-4 py-4">
+                                    <div
+                                        onClick={() => toggleCategory(group.id)}
+                                        className="rounded-2xl border border-slate-900/80 bg-slate-900/40 hover:bg-slate-900/70 transition-colors cursor-pointer overflow-hidden"
+                                    >
+                                        <div className="relative h-40 w-full bg-slate-900/70 border-b border-slate-800 overflow-hidden">
+                                            {bestProduct.image_path ? (
+                                                <img
+                                                    src={`http://localhost:8000/uploads/${bestProduct.image_path}`}
+                                                    alt={bestProduct.name}
+                                                    className="h-full w-full object-cover"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setExpandedImage({
+                                                            url: `http://localhost:8000/uploads/${bestProduct.image_path}`,
+                                                            name: bestProduct.name
+                                                        });
+                                                    }}
+                                                />
+                                            ) : (
+                                                <div className="h-full w-full flex items-center justify-center">
+                                                    <ShoppingBag size={28} className="text-slate-600" />
+                                                </div>
+                                            )}
+                                            {bestProduct.isBestPrice && (
+                                                <span className="absolute top-3 left-3 text-[10px] uppercase font-semibold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-500/30">Best</span>
+                                            )}
+                                        </div>
+
+                                        <div className="p-4">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0 flex-1">
+                                                    <h4 className="text-base font-semibold text-slate-100 truncate" title={bestProduct.name}>{bestProduct.name}</h4>
+                                                    <div className="text-[12px] text-slate-400 mt-1 flex flex-wrap gap-1.5">
+                                                        <span>{bestProduct.store}</span>
+                                                        <span className="text-slate-600">•</span>
+                                                        <span>{bestProduct.quantity} {bestProduct.unit}</span>
+                                                        <span className="text-slate-600">•</span>
+                                                        <span>{new Date(bestProduct.date).toLocaleDateString()}</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="text-right">
+                                                    <div className="text-base font-semibold text-slate-100">${bestProduct.price}</div>
+                                                    <div className="text-[12px] text-emerald-300">
+                                                        {bestProduct.unit_price ? `$${bestProduct.unit_price.toFixed(2)} / ${bestProduct.standard_unit}` : '-'}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-3 flex items-center gap-2">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        openEditModal(bestProduct);
+                                                    }}
+                                                    className="px-2.5 py-1.5 rounded-md border border-slate-800 bg-slate-900/70 text-slate-300 hover:text-slate-100 hover:border-slate-700 text-xs flex items-center gap-1"
+                                                    title="Edit Purchase"
+                                                >
+                                                    <Pencil size={14} />
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDelete(bestProduct.id, bestProduct.name);
+                                                    }}
+                                                    className="px-2.5 py-1.5 rounded-md border border-slate-800 bg-slate-900/70 text-rose-300 hover:text-rose-200 hover:border-rose-500/40 text-xs flex items-center gap-1"
+                                                    title="Delete Purchase"
+                                                >
+                                                    <Trash2 size={14} />
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {isExpanded && (
+                                        <div className="mt-4 space-y-3">
+                                            {moreProducts.length > 0 ? (
+                                                moreProducts.map((p) => (
+                                                    <div
+                                                        key={p.id}
+                                                        className="flex items-center gap-3 rounded-xl border border-slate-900/70 bg-slate-900/30 px-3 py-3"
+                                                    >
+                                                        <div className="h-12 w-12 rounded-lg bg-slate-900/70 border border-slate-800 overflow-hidden flex items-center justify-center">
+                                                            {p.image_path ? (
+                                                                <img
+                                                                    src={`http://localhost:8000/uploads/${p.image_path}`}
+                                                                    alt={p.name}
+                                                                    className="h-full w-full object-cover"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setExpandedImage({
+                                                                            url: `http://localhost:8000/uploads/${p.image_path}`,
+                                                                            name: p.name
+                                                                        });
+                                                                    }}
+                                                                />
+                                                            ) : (
+                                                                <ShoppingBag size={14} className="text-slate-600" />
+                                                            )}
+                                                        </div>
+
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-sm font-semibold text-slate-100 truncate" title={p.name}>{p.name}</span>
+                                                                {p.isBestPrice && (
+                                                                    <span className="text-[9px] uppercase font-semibold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Best</span>
+                                                                )}
+                                                            </div>
+                                                            <div className="text-[11px] text-slate-400 mt-1 flex flex-wrap gap-1.5">
+                                                                <span>{p.store}</span>
+                                                                <span className="text-slate-600">•</span>
+                                                                <span>{p.quantity} {p.unit}</span>
+                                                                <span className="text-slate-600">•</span>
+                                                                <span>{new Date(p.date).toLocaleDateString()}</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="text-right">
+                                                            <div className="text-sm font-semibold text-slate-100">${p.price}</div>
+                                                            <div className="text-[11px] text-slate-400">
+                                                                {p.unit_price ? `$${p.unit_price.toFixed(2)} / ${p.standard_unit}` : '-'}
+                                                            </div>
+                                                            {p.priceDiff > 0 && (
+                                                                <div className="text-[11px] text-rose-300">+{p.priceDiff.toFixed(2)} / {p.standard_unit}</div>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="flex items-center gap-1 pl-2">
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    openEditModal(p);
+                                                                }}
+                                                                className="p-1.5 rounded-md border border-slate-800 bg-slate-900/70 text-slate-300 hover:text-slate-100 hover:border-slate-700"
+                                                                title="Edit Purchase"
+                                                            >
+                                                                <Pencil size={13} />
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleDelete(p.id, p.name);
+                                                                }}
+                                                                className="p-1.5 rounded-md border border-slate-800 bg-slate-900/70 text-rose-300 hover:text-rose-200 hover:border-rose-500/40"
+                                                                title="Delete Purchase"
+                                                            >
+                                                                <Trash2 size={13} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="text-[11px] text-slate-500 px-2 py-2">No more items in this category.</div>
+                                            )}
                                         </div>
                                     )}
-
-                                    <div className="relative h-48 bg-slate-100 dark:bg-slate-900 flex items-center justify-center overflow-hidden">
-                                        {p.image_path ? (
-                                            <img
-                                                src={`http://localhost:8000/uploads/${p.image_path}`}
-                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 cursor-zoom-in"
-                                                alt={p.name}
-                                                onClick={() => setExpandedImage({
-                                                    url: `http://localhost:8000/uploads/${p.image_path}`,
-                                                    name: p.name
-                                                })}
-                                            />
-                                        ) : (
-                                            <div className="flex flex-col items-center justify-center text-slate-400 p-4 text-center">
-                                                <ShoppingBag size={32} className="mb-2 opacity-50" />
-                                                <span className="text-xs">No image</span>
-                                            </div>
-                                        )}
-
-                                        {/* Delete Button */}
-                                        <button
-                                            onClick={() => handleDelete(p.id, p.name)}
-                                            className="absolute top-3 left-3 p-2 bg-white/90 dark:bg-slate-900/90 rounded-full text-red-500 hover:text-red-600 hover:bg-white dark:hover:bg-slate-800 transition-colors shadow-sm opacity-0 group-hover:opacity-100 focus:opacity-100"
-                                            title="Delete Purchase"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-
-                                        {/* Edit Button */}
-                                        <button
-                                            onClick={() => openEditModal(p)}
-                                            className="absolute top-3 right-3 p-2 bg-white/90 dark:bg-slate-900/90 rounded-full text-slate-600 hover:text-slate-800 hover:bg-white dark:hover:bg-slate-800 transition-colors shadow-sm opacity-0 group-hover:opacity-100 focus:opacity-100"
-                                            title="Edit Purchase"
-                                        >
-                                            <Pencil size={16} />
-                                        </button>
-                                    </div>
-
-                                    <div className="p-4 flex-1 flex flex-col">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <h4 className="font-bold text-lg text-slate-800 dark:text-white line-clamp-1" title={p.name}>{p.name}</h4>
-                                            <span className="font-bold text-blue-600 dark:text-blue-400">${p.price}</span>
-                                        </div>
-
-                                        <div className="space-y-2 text-sm text-slate-500 dark:text-slate-400 flex-1">
-                                            <div className="flex justify-between">
-                                                <span>Store:</span>
-                                                <span className="font-medium text-slate-700 dark:text-slate-300">{p.store}</span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span>Size:</span>
-                                                <span>{p.quantity} {p.unit}</span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span>Date:</span>
-                                                <span>{new Date(p.date).toLocaleDateString()}</span>
-                                            </div>
-                                        </div>
-
-                                        <div className={`mt-4 pt-3 border-t flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 -mx-4 -mb-4 px-4 py-3 ${p.isBestPrice ? 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800' : 'border-slate-100 dark:border-slate-700'}`}>
-                                            <span className="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold">Unit Price</span>
-                                            <div className="flex flex-col items-end">
-                                                <span className={`font-bold ${p.isBestPrice ? 'text-green-600 dark:text-green-400' : 'text-slate-700 dark:text-slate-300'}`}>
-                                                    {p.unit_price ? `$${p.unit_price.toFixed(2)} / ${p.standard_unit}` : '-'}
-                                                </span>
-                                                {p.priceDiff > 0 && (
-                                                    <span className="text-xs text-red-500 font-medium">
-                                                        +{p.priceDiff.toFixed(2)} / {p.standard_unit}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
                                 </div>
-                            ))}
+                            ) : (
+                                <div className="px-4 py-6 text-center text-sm text-slate-500">No products yet.</div>
+                            )}
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
 
-                {groupedPurchases.length === 0 && (
-                    <div className="col-span-full py-12 text-center">
-                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
-                            <ShoppingBag className="h-8 w-8 text-slate-400" />
+                {filteredGroups.length === 0 && (
+                    <div className="col-span-full rounded-2xl border border-slate-900/80 bg-slate-950/80 p-8 text-center">
+                        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-900/70 mb-4">
+                            <ShoppingBag className="h-6 w-6 text-slate-500" />
                         </div>
-                        <h3 className="text-lg font-medium text-slate-900 dark:text-white">No products found</h3>
-                        <p className="mt-1 text-slate-500 dark:text-slate-400">Try selecting a different category or log a new purchase.</p>
+                        <h3 className="text-base font-medium text-slate-100">No categories found</h3>
+                        <p className="mt-1 text-sm text-slate-500">Try adjusting your filters or adding a new purchase.</p>
                     </div>
                 )}
             </div>
@@ -272,17 +398,17 @@ export function Dashboard() {
                     onClick={() => setExpandedImage(null)}
                 >
                     <div
-                        className="relative max-w-4xl w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl overflow-hidden"
+                        className="relative max-w-4xl w-full bg-slate-950 rounded-2xl shadow-xl overflow-hidden border border-slate-900"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <button
                             onClick={() => setExpandedImage(null)}
-                            className="absolute top-3 right-3 p-2 rounded-full bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white"
+                            className="absolute top-3 right-3 p-2 rounded-full bg-slate-900/80 text-slate-200 hover:text-white border border-slate-800"
                             title="Close"
                         >
                             <X size={18} />
                         </button>
-                        <div className="bg-slate-900">
+                        <div className="bg-slate-950">
                             <img
                                 src={expandedImage.url}
                                 alt={expandedImage.name}
@@ -299,14 +425,14 @@ export function Dashboard() {
                     onClick={closeEditModal}
                 >
                     <div
-                        className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-6"
+                        className="relative w-full max-w-2xl bg-slate-950 rounded-2xl shadow-xl p-6 border border-slate-900"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-xl font-bold text-slate-800 dark:text-white">Edit Product</h3>
+                            <h3 className="text-xl font-bold text-slate-100">Edit Product</h3>
                             <button
                                 onClick={closeEditModal}
-                                className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200 hover:text-slate-900"
+                                className="p-2 rounded-full bg-slate-900 text-slate-300 hover:text-slate-100 border border-slate-800"
                                 title="Close"
                                 type="button"
                             >
@@ -317,35 +443,35 @@ export function Dashboard() {
                         <form onSubmit={handleSaveEdit} className="space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product Name</label>
+                                    <label className="block text-sm font-medium text-slate-300 mb-1">Product Name</label>
                                     <input
                                         required
                                         name="name"
                                         value={editForm.name}
                                         onChange={handleEditChange}
-                                        className="w-full px-4 py-2 border dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                        className="w-full px-4 py-2 border border-slate-800 rounded-lg focus:ring-2 focus:ring-emerald-500/60 outline-none bg-slate-900 text-slate-100"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Store</label>
+                                    <label className="block text-sm font-medium text-slate-300 mb-1">Store</label>
                                     <input
                                         required
                                         name="store"
                                         value={editForm.store}
                                         onChange={handleEditChange}
-                                        className="w-full px-4 py-2 border dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                        className="w-full px-4 py-2 border border-slate-800 rounded-lg focus:ring-2 focus:ring-emerald-500/60 outline-none bg-slate-900 text-slate-100"
                                     />
                                 </div>
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+                                <label className="block text-sm font-medium text-slate-300 mb-1">Category</label>
                                 <select
                                     required
                                     name="category_id"
                                     value={editForm.category_id}
                                     onChange={handleEditChange}
-                                    className="w-full px-4 py-2 border dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                    className="w-full px-4 py-2 border border-slate-800 rounded-lg focus:ring-2 focus:ring-emerald-500/60 outline-none bg-slate-900 text-slate-100"
                                 >
                                     <option value="">Select Category</option>
                                     {categories.map(c => (
@@ -354,37 +480,37 @@ export function Dashboard() {
                                 </select>
                             </div>
 
-                            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-100 dark:border-slate-700">
+                            <div className="p-4 bg-slate-900/70 rounded-lg border border-slate-800">
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                     <div>
-                                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Price</label>
+                                        <label className="block text-xs text-slate-400 mb-1">Price</label>
                                         <input
                                             type="number" step="0.01"
                                             required
                                             name="price"
                                             value={editForm.price}
                                             onChange={handleEditChange}
-                                            className="w-full px-3 py-2 border dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                            className="w-full px-3 py-2 border border-slate-800 rounded-md bg-slate-950 text-slate-100"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Quantity</label>
+                                        <label className="block text-xs text-slate-400 mb-1">Quantity</label>
                                         <input
                                             type="number" step="0.01"
                                             required
                                             name="quantity"
                                             value={editForm.quantity}
                                             onChange={handleEditChange}
-                                            className="w-full px-3 py-2 border dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                            className="w-full px-3 py-2 border border-slate-800 rounded-md bg-slate-950 text-slate-100"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Unit</label>
+                                        <label className="block text-xs text-slate-400 mb-1">Unit</label>
                                         <select
                                             name="unit"
                                             value={editForm.unit}
                                             onChange={handleEditChange}
-                                            className="w-full px-3 py-2 border dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                            className="w-full px-3 py-2 border border-slate-800 rounded-md bg-slate-950 text-slate-100"
                                         >
                                             <option value="g">g</option>
                                             <option value="kg">kg</option>
@@ -395,14 +521,14 @@ export function Dashboard() {
                                         </select>
                                     </div>
                                     <div className="flex flex-col justify-end">
-                                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Date</label>
+                                        <label className="block text-xs text-slate-400 mb-1">Date</label>
                                         <input
                                             type="date"
                                             required
                                             name="date"
                                             value={editForm.date}
                                             onChange={handleEditChange}
-                                            className="w-full px-3 py-2 border dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                                            className="w-full px-3 py-2 border border-slate-800 rounded-md bg-slate-950 text-slate-100"
                                         />
                                     </div>
                                 </div>
@@ -412,14 +538,14 @@ export function Dashboard() {
                                 <button
                                     type="button"
                                     onClick={closeEditModal}
-                                    className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700"
+                                    className="px-4 py-2 rounded-lg bg-slate-900 text-slate-200 hover:bg-slate-800 border border-slate-800"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={savingEdit}
-                                    className="px-5 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-60"
+                                    className="px-5 py-2 rounded-lg bg-emerald-500 text-slate-950 font-semibold hover:bg-emerald-400 disabled:opacity-60"
                                 >
                                     {savingEdit ? 'Saving...' : 'Save Changes'}
                                 </button>
