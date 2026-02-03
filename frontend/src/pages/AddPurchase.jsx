@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Image as ImageIcon, Loader2, Trash2 } from 'lucide-react';
-import { fetchCategories, createCategory, createPurchase, deleteCategory } from '../api';
+import { fetchCategories, createCategory, createPurchase, deleteCategory, fetchImageMetadata } from '../api';
 import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
 
@@ -23,6 +23,9 @@ export function AddPurchase() {
     });
 
     const [preview, setPreview] = useState(null);
+    const [imageMeta, setImageMeta] = useState(null);
+    const [imageMetaLoading, setImageMetaLoading] = useState(false);
+    const [imageMetaError, setImageMetaError] = useState('');
 
     useEffect(() => {
         loadCategories();
@@ -47,6 +50,35 @@ export function AddPurchase() {
         if (file) {
             setFormData(prev => ({ ...prev, file }));
             setPreview(URL.createObjectURL(file));
+            setImageMeta(null);
+            setImageMetaError('');
+            setImageMetaLoading(true);
+            fetchImageMetadata(file)
+                .then((meta) => {
+                    setImageMeta(meta);
+                    setFormData(prev => {
+                        const next = { ...prev };
+                        if (!next.store && meta?.place?.store_guess) {
+                            next.store = meta.place.store_guess;
+                        }
+                        if (meta?.taken_at) {
+                            const taken = new Date(meta.taken_at);
+                            if (!Number.isNaN(taken.getTime())) {
+                                const takenDate = taken.toISOString().split('T')[0];
+                                if (!next.date || next.date === new Date().toISOString().split('T')[0]) {
+                                    next.date = takenDate;
+                                }
+                            }
+                        }
+                        return next;
+                    });
+                })
+                .catch((err) => {
+                    setImageMetaError(err.message || 'Failed to read image metadata');
+                })
+                .finally(() => {
+                    setImageMetaLoading(false);
+                });
         }
     };
 
@@ -284,6 +316,43 @@ export function AddPurchase() {
                                     <span className="text-xs text-gray-500 dark:text-slate-400">Click to upload</span>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-700 transition-colors">
+                    <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">Image Info</h3>
+                    {imageMetaLoading && (
+                        <div className="text-xs text-slate-400 flex items-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Reading image metadata...
+                        </div>
+                    )}
+                    {imageMetaError && (
+                        <div className="text-xs text-rose-500">{imageMetaError}</div>
+                    )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-600 dark:text-slate-300">
+                        <div>
+                            <div className="text-slate-400">Location</div>
+                            <div>
+                                {imageMeta?.location
+                                    ? `${imageMeta.location.latitude.toFixed(6)}, ${imageMeta.location.longitude.toFixed(6)}`
+                                    : '-'}
+                            </div>
+                        </div>
+                        <div>
+                            <div className="text-slate-400">Store (best guess)</div>
+                            <div>{imageMeta?.place?.store_guess || '-'}</div>
+                        </div>
+                        <div className="md:col-span-2">
+                            <div className="text-slate-400">Place</div>
+                            <div className="truncate">{imageMeta?.place?.display_name || '-'}</div>
+                        </div>
+                        <div>
+                            <div className="text-slate-400">Photo Taken</div>
+                            <div>
+                                {imageMeta?.taken_at ? new Date(imageMeta.taken_at).toLocaleString() : '-'}
+                            </div>
                         </div>
                     </div>
                 </div>

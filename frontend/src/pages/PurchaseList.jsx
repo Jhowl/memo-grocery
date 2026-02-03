@@ -20,6 +20,18 @@ export function PurchaseList() {
         fetchPurchases(selectedCat || null).then(setPurchases).catch(console.error);
     }
 
+    const formatImageLocation = (purchase) => {
+        if (purchase.image_location_lat == null || purchase.image_location_lon == null) return '-';
+        return `${purchase.image_location_lat.toFixed(6)}, ${purchase.image_location_lon.toFixed(6)}`;
+    };
+
+    const formatImageTakenAt = (value) => {
+        if (!value) return '-';
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return '-';
+        return parsed.toLocaleString();
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -48,6 +60,10 @@ export function PurchaseList() {
                                 <th className="p-4">Unit Price (Standard)</th>
                                 <th className="p-4">Price</th>
                                 <th className="p-4">Date</th>
+                                <th className="p-4">Image Store</th>
+                                <th className="p-4">Image Place</th>
+                                <th className="p-4">Image Location</th>
+                                <th className="p-4">Photo Taken</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
@@ -69,6 +85,12 @@ export function PurchaseList() {
                                     </td>
                                     <td className="p-4 text-slate-800 dark:text-white">${p.price}</td>
                                     <td className="p-4 text-xs text-slate-400 dark:text-slate-500">{p.date.split('T')[0]}</td>
+                                    <td className="p-4">{p.image_store_guess || '-'}</td>
+                                    <td className="p-4 max-w-[260px] truncate" title={p.image_place || ''}>
+                                        {p.image_place || '-'}
+                                    </td>
+                                    <td className="p-4">{formatImageLocation(p)}</td>
+                                    <td className="p-4 text-xs text-slate-400 dark:text-slate-500">{formatImageTakenAt(p.image_taken_at)}</td>
                                 </tr>
                             ))}
                         </tbody>

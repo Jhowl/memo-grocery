@@ -82,6 +82,11 @@ async def create_purchase(
     db: Session = Depends(get_db)
 ):
     image_path = None
+    image_location_lat = None
+    image_location_lon = None
+    image_place = None
+    image_store_guess = None
+    image_taken_at = None
     if file:
         file_extension = file.filename.split(".")[-1]
         filename = f"{uuid.uuid4()}.{file_extension}"
@@ -89,6 +94,18 @@ async def create_purchase(
         with open(file_location, "wb+") as file_object:
             shutil.copyfileobj(file.file, file_object)
         image_path = filename # Store relative path or just filename
+        try:
+            with Image.open(file_location) as image:
+                metadata = _extract_image_metadata_from_image(image)
+            location = metadata.get("location") or {}
+            image_location_lat = location.get("latitude")
+            image_location_lon = location.get("longitude")
+            place = metadata.get("place") or {}
+            image_place = place.get("display_name")
+            image_store_guess = place.get("store_guess")
+            image_taken_at = metadata.get("taken_at")
+        except Exception:
+            pass
     
     # Parse date string to datetime
     from datetime import datetime
@@ -107,7 +124,16 @@ async def create_purchase(
         category_id=category_id
     )
     
-    return crud.create_purchase(db=db, purchase=purchase_data, image_path=image_path)
+    return crud.create_purchase(
+        db=db,
+        purchase=purchase_data,
+        image_path=image_path,
+        image_location_lat=image_location_lat,
+        image_location_lon=image_location_lon,
+        image_place=image_place,
+        image_store_guess=image_store_guess,
+        image_taken_at=image_taken_at
+    )
 
 @app.get("/purchases/", response_model=List[schemas.Purchase])
 def read_purchases(skip: int = 0, limit: int = 100, category_id: int = None, db: Session = Depends(get_db)):
@@ -162,6 +188,18 @@ def _serialize_exif_value(value):
         return [_serialize_exif_value(v) for v in value]
     return str(value)
 
+def _parse_exif_datetime(value):
+    if not value:
+        return None
+    if isinstance(value, str):
+        try:
+            # EXIF format: "YYYY:MM:DD HH:MM:SS"
+            from datetime import datetime
+            return datetime.strptime(value, "%Y:%m:%d %H:%M:%S")
+        except Exception:
+            return None
+    return None
+
 def _rational_to_float(value):
     try:
         return float(value)
@@ -196,46 +234,11 @@ def _convert_gps_to_decimal(gps_data):
         return None
     return {"latitude": lat, "longitude": lon}
 
-def _reverse_geocode(latitude, longitude):
-    try:
-        params = urllib.parse.urlencode({
-            "format": "jsonv2",
-            "lat": latitude,
-            "lon": longitude,
-            "zoom": 18,
-            "addressdetails": 1
-        })
-        url = f"https://nominatim.openstreetmap.org/reverse?{params}"
-        request = urllib.request.Request(
-            url,
-            headers={"User-Agent": "anti-memo-grocery/1.0"}
-        )
-        with urllib.request.urlopen(request, timeout=5) as response:
-            data = json.loads(response.read().decode("utf-8"))
-            address = data.get("address") or {}
-            store_guess = (
-                data.get("name")
-                or address.get("shop")
-                or address.get("amenity")
-                or address.get("supermarket")
-                or address.get("brand")
-            )
-            return {
-                "display_name": data.get("display_name"),
-                "address": address,
-                "store_guess": store_guess
-            }
-    except Exception:
-        return None
-
-@app.post("/images/metadata")
-async def read_image_metadata(file: UploadFile = File(...)):
-    content = await file.read()
-    image = Image.open(io.BytesIO(content))
-
+def _extract_image_metadata_from_image(image):
     exif_data = {}
     gps_data = {}
     location = None
+    taken_at = None
 
     raw_exif = image._getexif() if hasattr(image, "_getexif") else None
     if raw_exif:
@@ -251,9 +254,94 @@ async def read_image_metadata(file: UploadFile = File(...)):
     if gps_data:
         location = _convert_gps_to_decimal(gps_data)
 
+    taken_at = (
+        _parse_exif_datetime(exif_data.get("DateTimeOriginal"))
+        or _parse_exif_datetime(exif_data.get("DateTimeDigitized"))
+        or _parse_exif_datetime(exif_data.get("DateTime"))
+    )
+
     place = None
     if location:
         place = _reverse_geocode(location["latitude"], location["longitude"])
+
+    return {
+        "exif": exif_data,
+        "gps": gps_data,
+        "location": location,
+        "place": place,
+        "taken_at": taken_at
+    }
+
+def _pick_store_guess(data, address):
+    # Prefer explicit business/amenity tags over generic names (often roads).
+    for key in ("shop", "amenity", "supermarket", "brand"):
+        value = address.get(key)
+        if value:
+            return value
+
+    name = data.get("name") or (data.get("namedetails") or {}).get("name")
+    category = data.get("category")
+    place_type = data.get("type")
+
+    allowed_categories = {
+        "shop",
+        "amenity",
+        "tourism",
+        "leisure",
+        "office",
+        "building",
+    }
+    allowed_types = {
+        "supermarket",
+        "convenience",
+        "grocery",
+        "bakery",
+        "butcher",
+        "marketplace",
+        "department_store",
+        "discount_store",
+        "wholesale",
+        "pharmacy",
+        "mall",
+    }
+
+    if name and (category in allowed_categories or place_type in allowed_types):
+        return name
+    return None
+
+def _reverse_geocode(latitude, longitude):
+    try:
+        params = urllib.parse.urlencode({
+            "format": "jsonv2",
+            "lat": latitude,
+            "lon": longitude,
+            "zoom": 18,
+            "addressdetails": 1,
+            "namedetails": 1
+        })
+        url = f"https://nominatim.openstreetmap.org/reverse?{params}"
+        request = urllib.request.Request(
+            url,
+            headers={"User-Agent": "anti-memo-grocery/1.0"}
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            data = json.loads(response.read().decode("utf-8"))
+            address = data.get("address") or {}
+            store_guess = _pick_store_guess(data, address)
+            return {
+                "display_name": data.get("display_name"),
+                "address": address,
+                "store_guess": store_guess
+            }
+    except Exception:
+        return None
+
+@app.post("/images/metadata")
+async def read_image_metadata(file: UploadFile = File(...)):
+    content = await file.read()
+    image = Image.open(io.BytesIO(content))
+
+    metadata = _extract_image_metadata_from_image(image)
 
     return {
         "file": {
@@ -267,8 +355,9 @@ async def read_image_metadata(file: UploadFile = File(...)):
             "width": image.width,
             "height": image.height
         },
-        "exif": exif_data,
-        "gps": gps_data,
-        "location": location,
-        "place": place
+        "exif": metadata.get("exif"),
+        "gps": metadata.get("gps"),
+        "location": metadata.get("location"),
+        "place": metadata.get("place"),
+        "taken_at": metadata.get("taken_at")
     }

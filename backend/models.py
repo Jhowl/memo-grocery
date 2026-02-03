@@ -28,6 +28,11 @@ class Purchase(Base):
     unit_price = Column(Float) # Price per standard_unit
     
     image_path = Column(String, nullable=True)
+    image_location_lat = Column(Float, nullable=True)
+    image_location_lon = Column(Float, nullable=True)
+    image_place = Column(String, nullable=True)
+    image_store_guess = Column(String, nullable=True)
+    image_taken_at = Column(DateTime, nullable=True)
     
     category_id = Column(Integer, ForeignKey("categories.id"))
     category = relationship("Category", back_populates="purchases")

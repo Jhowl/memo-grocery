@@ -21,7 +21,16 @@ def get_categories(db: Session, skip: int = 0, limit: int = 100):
 def count_purchases_by_category(db: Session, category_id: int):
     return db.query(models.Purchase).filter(models.Purchase.category_id == category_id).count()
 
-def create_purchase(db: Session, purchase: schemas.PurchaseCreate, image_path: str = None):
+def create_purchase(
+    db: Session,
+    purchase: schemas.PurchaseCreate,
+    image_path: str = None,
+    image_location_lat: float = None,
+    image_location_lon: float = None,
+    image_place: str = None,
+    image_store_guess: str = None,
+    image_taken_at = None
+):
     # Calculate unit price logic
     unit_price, std_unit, norm_qty = calculate_unit_price(
         purchase.price, purchase.quantity, purchase.unit
@@ -35,6 +44,11 @@ def create_purchase(db: Session, purchase: schemas.PurchaseCreate, image_path: s
         quantity=purchase.quantity,
         unit=purchase.unit,
         image_path=image_path,
+        image_location_lat=image_location_lat,
+        image_location_lon=image_location_lon,
+        image_place=image_place,
+        image_store_guess=image_store_guess,
+        image_taken_at=image_taken_at,
         category_id=purchase.category_id,
         normalized_quantity=norm_qty,
         standard_unit=std_unit,

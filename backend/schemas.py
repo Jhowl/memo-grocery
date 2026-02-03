@@ -29,6 +29,11 @@ class PurchaseCreate(PurchaseBase):
 class Purchase(PurchaseBase):
     id: int
     image_path: Optional[str] = None
+    image_location_lat: Optional[float] = None
+    image_location_lon: Optional[float] = None
+    image_place: Optional[str] = None
+    image_store_guess: Optional[str] = None
+    image_taken_at: Optional[datetime] = None
     normalized_quantity: float
     standard_unit: str
     unit_price: float
