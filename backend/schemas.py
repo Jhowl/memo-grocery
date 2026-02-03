@@ -38,6 +38,7 @@ class Purchase(PurchaseBase):
     standard_unit: str
     unit_price: float
     category: Optional[Category] = None
+    categories: Optional[List[Category]] = None
 
     class Config:
         orm_mode = True

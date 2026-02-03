@@ -21,6 +21,7 @@ export function AddPurchase() {
         category_id: '',
         file: null
     });
+    const [selectedCategories, setSelectedCategories] = useState([]);
 
     const [preview, setPreview] = useState(null);
     const [imageMeta, setImageMeta] = useState(null);
@@ -43,6 +44,12 @@ export function AddPurchase() {
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleCategoryChange = (e) => {
+        const values = Array.from(e.target.selectedOptions).map(option => option.value);
+        setSelectedCategories(values);
+        setFormData(prev => ({ ...prev, category_id: values[0] || '' }));
     };
 
     const handleFileChange = (e) => {
@@ -87,6 +94,7 @@ export function AddPurchase() {
         try {
             const cat = await createCategory(newCatName);
             setCategories([...categories, cat]);
+            setSelectedCategories(prev => [...prev, String(cat.id)]);
             setFormData(prev => ({ ...prev, category_id: cat.id }));
             setNewCatName('');
             setShowNewCatInput(false);
@@ -123,6 +131,9 @@ export function AddPurchase() {
                     data.append(key, formData[key]);
                 }
             });
+            if (selectedCategories.length > 0) {
+                data.append('category_ids', JSON.stringify(selectedCategories));
+            }
 
             await createPurchase(data);
             navigate('/purchases');
@@ -196,12 +207,11 @@ export function AddPurchase() {
                         {!showNewCatInput ? (
                             <select
                                 required
-                                name="category_id"
-                                value={formData.category_id}
-                                onChange={handleInputChange}
+                                multiple
+                                value={selectedCategories}
+                                onChange={handleCategoryChange}
                                 className="flex-1 px-4 py-2 border dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-slate-700 text-slate-900 dark:text-white transition-colors"
                             >
-                                <option value="">Select Category</option>
                                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </select>
                         ) : (
@@ -232,6 +242,7 @@ export function AddPurchase() {
                             >Cancel</button>
                         )}
                     </div>
+                    <p className="mt-2 text-xs text-slate-500">Hold Cmd (Mac) or Ctrl (Windows) to select multiple categories.</p>
                 </div>
 
                 {/* Price & Quantity */}

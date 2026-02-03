@@ -57,6 +57,7 @@ export function PurchaseList() {
                             <tr>
                                 <th className="p-4">Product</th>
                                 <th className="p-4">Store</th>
+                                <th className="p-4">Categories</th>
                                 <th className="p-4">Unit Price (Standard)</th>
                                 <th className="p-4">Price</th>
                                 <th className="p-4">Date</th>
@@ -80,6 +81,26 @@ export function PurchaseList() {
                                         {p.name}
                                     </td>
                                     <td className="p-4">{p.store}</td>
+                                    <td className="p-4">
+                                        <div className="flex flex-wrap gap-1">
+                                            {(p.categories && p.categories.length > 0
+                                                ? p.categories
+                                                : p.category
+                                                    ? [p.category]
+                                                    : []
+                                            ).map((c) => (
+                                                <span
+                                                    key={`${p.id}-${c.id}`}
+                                                    className="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-[11px] text-slate-600 dark:text-slate-200"
+                                                >
+                                                    {c.name}
+                                                </span>
+                                            ))}
+                                            {(!p.categories || p.categories.length === 0) && !p.category && (
+                                                <span className="text-xs text-slate-400">-</span>
+                                            )}
+                                        </div>
+                                    </td>
                                     <td className="p-4 font-bold text-blue-600 dark:text-blue-400">
                                         {p.unit_price ? `$${p.unit_price.toFixed(2)} / ${p.standard_unit}` : '-'}
                                     </td>

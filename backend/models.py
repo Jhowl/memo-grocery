@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Table
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime
@@ -9,7 +9,18 @@ class Category(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
     
-    purchases = relationship("Purchase", back_populates="category")
+    purchases = relationship(
+        "Purchase",
+        secondary="purchase_categories",
+        back_populates="categories"
+    )
+
+purchase_categories = Table(
+    "purchase_categories",
+    Base.metadata,
+    Column("purchase_id", Integer, ForeignKey("purchases.id", ondelete="CASCADE"), primary_key=True),
+    Column("category_id", Integer, ForeignKey("categories.id", ondelete="CASCADE"), primary_key=True)
+)
 
 class Purchase(Base):
     __tablename__ = "purchases"
@@ -33,6 +44,11 @@ class Purchase(Base):
     image_place = Column(String, nullable=True)
     image_store_guess = Column(String, nullable=True)
     image_taken_at = Column(DateTime, nullable=True)
-    
+
     category_id = Column(Integer, ForeignKey("categories.id"))
-    category = relationship("Category", back_populates="purchases")
+    category = relationship("Category", foreign_keys=[category_id])
+    categories = relationship(
+        "Category",
+        secondary="purchase_categories",
+        back_populates="purchases"
+    )

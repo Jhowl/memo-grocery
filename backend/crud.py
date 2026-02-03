@@ -19,7 +19,13 @@ def get_categories(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Category).offset(skip).limit(limit).all()
 
 def count_purchases_by_category(db: Session, category_id: int):
-    return db.query(models.Purchase).filter(models.Purchase.category_id == category_id).count()
+    return (
+        db.query(models.Purchase)
+        .join(models.Purchase.categories)
+        .filter(models.Category.id == category_id)
+        .distinct()
+        .count()
+    )
 
 def create_purchase(
     db: Session,
@@ -29,7 +35,8 @@ def create_purchase(
     image_location_lon: float = None,
     image_place: str = None,
     image_store_guess: str = None,
-    image_taken_at = None
+    image_taken_at = None,
+    category_ids = None
 ):
     # Calculate unit price logic
     unit_price, std_unit, norm_qty = calculate_unit_price(
@@ -54,6 +61,9 @@ def create_purchase(
         standard_unit=std_unit,
         unit_price=unit_price
     )
+    if category_ids:
+        categories = db.query(models.Category).filter(models.Category.id.in_(category_ids)).all()
+        db_purchase.categories = categories
     db.add(db_purchase)
     db.commit()
     db.refresh(db_purchase)
@@ -62,7 +72,7 @@ def create_purchase(
 def get_purchases(db: Session, skip: int = 0, limit: int = 100, category_id: int = None):
     query = db.query(models.Purchase)
     if category_id:
-        query = query.filter(models.Purchase.category_id == category_id)
+        query = query.join(models.Purchase.categories).filter(models.Category.id == category_id).distinct()
     return query.order_by(models.Purchase.date.desc()).offset(skip).limit(limit).all()
 
 def delete_purchase(db: Session, purchase_id: int):
@@ -100,6 +110,10 @@ def update_purchase(db: Session, purchase_id: int, purchase: schemas.PurchaseCre
     db_purchase.normalized_quantity = norm_qty
     db_purchase.standard_unit = std_unit
     db_purchase.unit_price = unit_price
+    if purchase.category_id:
+        category = db.query(models.Category).filter(models.Category.id == purchase.category_id).first()
+        if category:
+            db_purchase.categories = [category]
 
     db.commit()
     db.refresh(db_purchase)

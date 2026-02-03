@@ -152,6 +152,12 @@ export function ImageTest() {
                                 {metadata?.place?.store_guess || '-'}
                             </span>
                         </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-slate-500">Photo Taken</span>
+                            <span className="text-right ml-4">
+                                {metadata?.taken_at ? new Date(metadata.taken_at).toLocaleString() : '-'}
+                            </span>
+                        </div>
                     </div>
 
                     <div className="mt-6">
@@ -167,6 +173,7 @@ export function ImageTest() {
                             {metadata?.gps ? JSON.stringify(metadata.gps, null, 2) : '-'}
                         </pre>
                     </div>
+
                 </div>
             </div>
         </div>

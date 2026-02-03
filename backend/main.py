@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status
+from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -37,6 +38,10 @@ app.add_middleware(
 # Static files for images
 os.makedirs("uploads", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
 
 @app.delete("/purchases/{purchase_id}")
 def delete_purchase(purchase_id: int, db: Session = Depends(get_db)):
@@ -78,6 +83,7 @@ async def create_purchase(
     quantity: float = Form(...),
     unit: str = Form(...),
     category_id: int = Form(...),
+    category_ids: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db)
 ):
@@ -124,6 +130,18 @@ async def create_purchase(
         category_id=category_id
     )
     
+    parsed_category_ids = None
+    if category_ids:
+        try:
+            parsed = json.loads(category_ids)
+            if isinstance(parsed, list):
+                parsed_category_ids = [int(v) for v in parsed if str(v).isdigit()]
+        except Exception:
+            parsed_category_ids = [int(v) for v in category_ids.split(",") if v.strip().isdigit()]
+
+    if not parsed_category_ids:
+        parsed_category_ids = [category_id]
+
     return crud.create_purchase(
         db=db,
         purchase=purchase_data,
@@ -132,7 +150,8 @@ async def create_purchase(
         image_location_lon=image_location_lon,
         image_place=image_place,
         image_store_guess=image_store_guess,
-        image_taken_at=image_taken_at
+        image_taken_at=image_taken_at,
+        category_ids=parsed_category_ids
     )
 
 @app.get("/purchases/", response_model=List[schemas.Purchase])
@@ -199,6 +218,7 @@ def _parse_exif_datetime(value):
         except Exception:
             return None
     return None
+
 
 def _rational_to_float(value):
     try:
@@ -336,6 +356,28 @@ def _reverse_geocode(latitude, longitude):
     except Exception:
         return None
 
+class AgentPriceUnit(BaseModel):
+    amount: float
+    currency: str | None = None
+    per: str | None = None
+
+class AgentPrice(BaseModel):
+    amount: float
+    currency: str | None = None
+    unit_price: AgentPriceUnit | None = None
+
+class AgentTrackPayload(BaseModel):
+    product_name: str
+    brand: str | None = None
+    store: str | None = None
+    category: list[str] | None = None
+    variant: str | None = None
+    quantity: float | None = None
+    unit: str | None = None
+    net_weight_text: str | None = None
+    price: AgentPrice | None = None
+    date: str | None = None
+
 @app.post("/images/metadata")
 async def read_image_metadata(file: UploadFile = File(...)):
     content = await file.read()
@@ -361,3 +403,96 @@ async def read_image_metadata(file: UploadFile = File(...)):
         "place": metadata.get("place"),
         "taken_at": metadata.get("taken_at")
     }
+
+@app.post("/agent/track", response_model=schemas.Purchase)
+async def agent_create_track(
+    payload: str = Form(...),
+    file: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db)
+):
+    try:
+        data = json.loads(payload)
+        agent_payload = AgentTrackPayload(**data)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid payload JSON")
+
+    if not agent_payload.product_name or not agent_payload.price or agent_payload.price.amount is None:
+        raise HTTPException(status_code=400, detail="product_name and price.amount are required")
+
+    category_id = None
+    categories = agent_payload.category or []
+    if categories:
+        created_ids = []
+        for tag in categories:
+            if not tag:
+                continue
+            existing = crud.get_category_by_name(db, name=tag)
+            if existing:
+                created_ids.append(existing.id)
+                continue
+            created = crud.create_category(db=db, category=schemas.CategoryCreate(name=tag))
+            created_ids.append(created.id)
+        if created_ids:
+            category_id = created_ids[0]
+
+    if category_id is None:
+        raise HTTPException(status_code=400, detail="At least one category tag is required")
+
+    image_path = None
+    image_location_lat = None
+    image_location_lon = None
+    image_place = None
+    image_store_guess = None
+    image_taken_at = None
+
+    if file:
+        file_extension = file.filename.split(".")[-1] if file.filename else "jpg"
+        filename = f"{uuid.uuid4()}.{file_extension}"
+        file_location = f"uploads/{filename}"
+        with open(file_location, "wb+") as file_object:
+            shutil.copyfileobj(file.file, file_object)
+        image_path = filename
+        try:
+            with Image.open(file_location) as image:
+                metadata = _extract_image_metadata_from_image(image)
+            location = metadata.get("location") or {}
+            image_location_lat = location.get("latitude")
+            image_location_lon = location.get("longitude")
+            place = metadata.get("place") or {}
+            image_place = place.get("display_name")
+            image_store_guess = place.get("store_guess")
+            image_taken_at = metadata.get("taken_at")
+        except Exception:
+            pass
+
+    from datetime import datetime
+    try:
+        date_obj = datetime.fromisoformat(agent_payload.date.replace('Z', '+00:00')) if agent_payload.date else datetime.now()
+    except Exception:
+        date_obj = datetime.now()
+
+    quantity = agent_payload.quantity if agent_payload.quantity is not None else 1
+    unit = agent_payload.unit or "g"
+    store_value = agent_payload.store or image_store_guess or agent_payload.brand or "Unknown"
+
+    purchase_data = schemas.PurchaseCreate(
+        name=agent_payload.product_name,
+        store=store_value,
+        date=date_obj,
+        price=agent_payload.price.amount,
+        quantity=quantity,
+        unit=unit,
+        category_id=category_id
+    )
+
+    return crud.create_purchase(
+        db=db,
+        purchase=purchase_data,
+        image_path=image_path,
+        image_location_lat=image_location_lat,
+        image_location_lon=image_location_lon,
+        image_place=image_place,
+        image_store_guess=image_store_guess,
+        image_taken_at=image_taken_at,
+        category_ids=created_ids if categories else None
+    )
