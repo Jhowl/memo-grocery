@@ -10,8 +10,9 @@ export function Sidebar() {
 
     const navItems = [
         { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-        { name: 'Add Purchase', path: '/add', icon: PlusCircle },
+        { name: 'Track Product', path: '/add', icon: PlusCircle },
         { name: 'History & Compare', path: '/purchases', icon: List },
+        { name: 'Image Test', path: '/test-image', icon: ImageIcon },
     ];
 
     return (

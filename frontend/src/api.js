@@ -49,6 +49,18 @@ export async function deletePurchase(id) {
     return res.json();
 }
 
+export async function deleteCategory(id) {
+    const res = await fetch(`${API_URL}/categories/${id}`, {
+        method: 'DELETE',
+    });
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const errorMessage = errorData.detail || 'Failed to delete category';
+        throw new Error(errorMessage);
+    }
+    return res.json();
+}
+
 export async function updatePurchase(id, formData) {
     const res = await fetch(`${API_URL}/purchases/${id}`, {
         method: 'PUT',
@@ -61,6 +73,22 @@ export async function updatePurchase(id, formData) {
                 ? errorData.detail.map(e => `${e.loc.join('.')} - ${e.msg}`).join(', ')
                 : errorData.detail)
             : 'Failed to update purchase';
+        throw new Error(errorMessage);
+    }
+    return res.json();
+}
+
+export async function fetchImageMetadata(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch(`${API_URL}/images/metadata`, {
+        method: 'POST',
+        body: formData,
+    });
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const errorMessage = errorData.detail || 'Failed to read image metadata';
         throw new Error(errorMessage);
     }
     return res.json();

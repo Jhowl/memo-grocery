@@ -6,6 +6,11 @@ from typing import List, Optional
 import shutil
 import os
 import uuid
+import io
+import json
+import urllib.request
+import urllib.parse
+from PIL import Image, ExifTags
 import models, schemas, crud
 from database import engine, get_db
 
@@ -50,6 +55,19 @@ def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_
 @app.get("/categories/", response_model=List[schemas.Category])
 def read_categories(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     return crud.get_categories(db, skip=skip, limit=limit)
+
+@app.delete("/categories/{category_id}")
+def delete_category(category_id: int, db: Session = Depends(get_db)):
+    db_category = crud.get_category(db, category_id=category_id)
+    if not db_category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    purchase_count = crud.count_purchases_by_category(db, category_id=category_id)
+    if purchase_count > 0:
+        raise HTTPException(status_code=400, detail="Category has purchases; delete them first")
+
+    crud.delete_category(db, category_id=category_id)
+    return {"message": "Category deleted successfully"}
 
 @app.post("/purchases/", response_model=schemas.Purchase)
 async def create_purchase(
@@ -131,3 +149,126 @@ async def update_purchase(
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Anti-Memo Grocery API"}
+
+def _serialize_exif_value(value):
+    if isinstance(value, (int, float, str, bool)):
+        return value
+    if isinstance(value, bytes):
+        try:
+            return value.decode('utf-8', errors='ignore')
+        except Exception:
+            return str(value)
+    if isinstance(value, tuple):
+        return [_serialize_exif_value(v) for v in value]
+    return str(value)
+
+def _rational_to_float(value):
+    try:
+        return float(value)
+    except Exception:
+        try:
+            return value[0] / value[1]
+        except Exception:
+            return None
+
+def _convert_gps_to_decimal(gps_data):
+    def _get_coord(values):
+        if not values or len(values) < 3:
+            return None
+        degrees = _rational_to_float(values[0])
+        minutes = _rational_to_float(values[1])
+        seconds = _rational_to_float(values[2])
+        if degrees is None or minutes is None or seconds is None:
+            return None
+        return degrees + (minutes / 60.0) + (seconds / 3600.0)
+
+    lat = _get_coord(gps_data.get('GPSLatitude'))
+    lon = _get_coord(gps_data.get('GPSLongitude'))
+    lat_ref = gps_data.get('GPSLatitudeRef')
+    lon_ref = gps_data.get('GPSLongitudeRef')
+
+    if lat is not None and lat_ref in ['S', 's']:
+        lat = -lat
+    if lon is not None and lon_ref in ['W', 'w']:
+        lon = -lon
+
+    if lat is None or lon is None:
+        return None
+    return {"latitude": lat, "longitude": lon}
+
+def _reverse_geocode(latitude, longitude):
+    try:
+        params = urllib.parse.urlencode({
+            "format": "jsonv2",
+            "lat": latitude,
+            "lon": longitude,
+            "zoom": 18,
+            "addressdetails": 1
+        })
+        url = f"https://nominatim.openstreetmap.org/reverse?{params}"
+        request = urllib.request.Request(
+            url,
+            headers={"User-Agent": "anti-memo-grocery/1.0"}
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            data = json.loads(response.read().decode("utf-8"))
+            address = data.get("address") or {}
+            store_guess = (
+                data.get("name")
+                or address.get("shop")
+                or address.get("amenity")
+                or address.get("supermarket")
+                or address.get("brand")
+            )
+            return {
+                "display_name": data.get("display_name"),
+                "address": address,
+                "store_guess": store_guess
+            }
+    except Exception:
+        return None
+
+@app.post("/images/metadata")
+async def read_image_metadata(file: UploadFile = File(...)):
+    content = await file.read()
+    image = Image.open(io.BytesIO(content))
+
+    exif_data = {}
+    gps_data = {}
+    location = None
+
+    raw_exif = image._getexif() if hasattr(image, "_getexif") else None
+    if raw_exif:
+        for tag, value in raw_exif.items():
+            tag_name = ExifTags.TAGS.get(tag, tag)
+            if tag_name == "GPSInfo":
+                for gps_tag, gps_value in value.items():
+                    gps_name = ExifTags.GPSTAGS.get(gps_tag, gps_tag)
+                    gps_data[gps_name] = _serialize_exif_value(gps_value)
+            else:
+                exif_data[tag_name] = _serialize_exif_value(value)
+
+    if gps_data:
+        location = _convert_gps_to_decimal(gps_data)
+
+    place = None
+    if location:
+        place = _reverse_geocode(location["latitude"], location["longitude"])
+
+    return {
+        "file": {
+            "name": file.filename,
+            "type": file.content_type,
+            "size": len(content)
+        },
+        "image": {
+            "format": image.format,
+            "mode": image.mode,
+            "width": image.width,
+            "height": image.height
+        },
+        "exif": exif_data,
+        "gps": gps_data,
+        "location": location,
+        "place": place
+    }

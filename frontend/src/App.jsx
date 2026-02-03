@@ -3,6 +3,7 @@ import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './pages/Dashboard';
 import { AddPurchase } from './pages/AddPurchase';
 import { PurchaseList } from './pages/PurchaseList';
+import { ImageTest } from './pages/ImageTest';
 import { ThemeProvider } from './context/ThemeContext';
 
 function Layout({ children }) {
@@ -33,6 +34,7 @@ function App() {
                         <Route path="/" element={<Dashboard />} />
                         <Route path="/add" element={<AddPurchase />} />
                         <Route path="/purchases" element={<PurchaseList />} />
+                        <Route path="/test-image" element={<ImageTest />} />
                     </Routes>
                 </Layout>
             </BrowserRouter>

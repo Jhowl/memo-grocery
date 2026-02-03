@@ -47,6 +47,7 @@ export function Dashboard() {
         }
     };
 
+
     const toggleCategory = (categoryId) => {
         setExpandedCategoryId(prev => (prev === categoryId ? null : categoryId));
     };
@@ -387,7 +388,7 @@ export function Dashboard() {
                             <ShoppingBag className="h-6 w-6 text-slate-500" />
                         </div>
                         <h3 className="text-base font-medium text-slate-100">No categories found</h3>
-                        <p className="mt-1 text-sm text-slate-500">Try adjusting your filters or adding a new purchase.</p>
+                        <p className="mt-1 text-sm text-slate-500">Try adjusting your filters or tracking a new product.</p>
                     </div>
                 )}
             </div>

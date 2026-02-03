@@ -18,6 +18,9 @@ def create_category(db: Session, category: schemas.CategoryCreate):
 def get_categories(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Category).offset(skip).limit(limit).all()
 
+def count_purchases_by_category(db: Session, category_id: int):
+    return db.query(models.Purchase).filter(models.Purchase.category_id == category_id).count()
+
 def create_purchase(db: Session, purchase: schemas.PurchaseCreate, image_path: str = None):
     # Calculate unit price logic
     unit_price, std_unit, norm_qty = calculate_unit_price(
@@ -52,6 +55,14 @@ def delete_purchase(db: Session, purchase_id: int):
     db_purchase = db.query(models.Purchase).filter(models.Purchase.id == purchase_id).first()
     if db_purchase:
         db.delete(db_purchase)
+        db.commit()
+        return True
+    return False
+
+def delete_category(db: Session, category_id: int):
+    db_category = db.query(models.Category).filter(models.Category.id == category_id).first()
+    if db_category:
+        db.delete(db_category)
         db.commit()
         return True
     return False

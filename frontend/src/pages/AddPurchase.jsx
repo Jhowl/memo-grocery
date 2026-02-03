@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Image as ImageIcon, Loader2 } from 'lucide-react';
-import { fetchCategories, createCategory, createPurchase } from '../api';
+import { Plus, Image as ImageIcon, Loader2, Trash2 } from 'lucide-react';
+import { fetchCategories, createCategory, createPurchase, deleteCategory } from '../api';
 import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
 
@@ -63,6 +63,21 @@ export function AddPurchase() {
         }
     };
 
+    const handleDeleteCategory = async (categoryId, name) => {
+        if (window.confirm(`Delete category "${name}"? This will only work if it has no purchases.`)) {
+            try {
+                await deleteCategory(categoryId);
+                setCategories(prev => prev.filter(c => c.id !== categoryId));
+                setFormData(prev => ({
+                    ...prev,
+                    category_id: prev.category_id === categoryId ? '' : prev.category_id
+                }));
+            } catch (e) {
+                alert(e.message || 'Failed to delete category');
+            }
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -113,7 +128,7 @@ export function AddPurchase() {
 
     return (
         <div className="max-w-2xl mx-auto">
-            <h2 className="text-3xl font-bold text-slate-800 dark:text-white mb-6">Log Purchase</h2>
+            <h2 className="text-3xl font-bold text-slate-800 dark:text-white mb-6">Track Product</h2>
 
             <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6 space-y-6 border border-slate-100 dark:border-slate-700 transition-colors">
                 {/* Name & Store */}
@@ -283,6 +298,28 @@ export function AddPurchase() {
                 </button>
 
             </form>
+
+            {categories.length > 0 && (
+                <div className="mt-6 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-4">
+                    <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 font-semibold mb-3">Manage Categories</div>
+                    <div className="space-y-2">
+                        {categories.map(c => (
+                            <div key={c.id} className="flex items-center justify-between gap-2 text-sm">
+                                <span className="text-slate-700 dark:text-slate-200 truncate">{c.name}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => handleDeleteCategory(c.id, c.name)}
+                                    className="inline-flex items-center gap-1 text-xs text-red-500 hover:text-red-600"
+                                    title="Delete Category"
+                                >
+                                    <Trash2 size={14} />
+                                    Delete
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
