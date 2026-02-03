@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { fetchPurchases, fetchCategories, deletePurchase, updatePurchase } from '../api';
+import { fetchPurchases, fetchCategories, deletePurchase, updatePurchase, UPLOADS_URL } from '../api';
 import { ShoppingBag, Filter, ChevronDown, Trash2, Pencil, X, Search } from 'lucide-react';
 
 export function Dashboard() {
@@ -223,13 +223,13 @@ export function Dashboard() {
                                         <div className="relative h-40 w-full bg-slate-900/70 border-b border-slate-800 overflow-hidden">
                                             {bestProduct.image_path ? (
                                                 <img
-                                                    src={`http://localhost:8000/uploads/${bestProduct.image_path}`}
+                                                    src={`${UPLOADS_URL}/${bestProduct.image_path}`}
                                                     alt={bestProduct.name}
                                                     className="h-full w-full object-cover"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         setExpandedImage({
-                                                            url: `http://localhost:8000/uploads/${bestProduct.image_path}`,
+                                                            url: `${UPLOADS_URL}/${bestProduct.image_path}`,
                                                             name: bestProduct.name
                                                         });
                                                     }}
@@ -303,13 +303,13 @@ export function Dashboard() {
                                                         <div className="h-12 w-12 rounded-lg bg-slate-900/70 border border-slate-800 overflow-hidden flex items-center justify-center">
                                                             {p.image_path ? (
                                                                 <img
-                                                                    src={`http://localhost:8000/uploads/${p.image_path}`}
+                                                                    src={`${UPLOADS_URL}/${p.image_path}`}
                                                                     alt={p.name}
                                                                     className="h-full w-full object-cover"
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
                                                                         setExpandedImage({
-                                                                            url: `http://localhost:8000/uploads/${p.image_path}`,
+                                                                            url: `${UPLOADS_URL}/${p.image_path}`,
                                                                             name: p.name
                                                                         });
                                                                     }}

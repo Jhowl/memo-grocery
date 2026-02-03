@@ -32,8 +32,10 @@ services:
       - /app/node_modules
     ports:
       - "8081:5173"
-    environment:
-      - VITE_API_URL=http://localhost:8000
+    # If VITE_API_URL is unset, frontend will default to http://<current-hostname>:8000
+    # You can override this if you serve backend elsewhere:
+    # environment:
+    #   - VITE_API_URL=http://192.168.1.173:8000
     depends_on:
       - backend
 

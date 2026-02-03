@@ -1,4 +1,12 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// API base for the backend.
+// In production behind nginx (memogrocery.home), we proxy the API at /api.
+// In dev, you can still override with VITE_API_URL.
+const API_URL = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
+
+// Where images are served from. Behind nginx we proxy /uploads.
+const UPLOADS_URL = import.meta.env.VITE_UPLOADS_URL || `${window.location.origin}/uploads`;
+
+export { API_URL, UPLOADS_URL };
 
 export async function fetchCategories() {
     const res = await fetch(`${API_URL}/categories/`);

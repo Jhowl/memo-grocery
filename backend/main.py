@@ -20,6 +20,7 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Anti-Memo Grocery API")
 
 # CORS
+# Allow local dev + LAN access (so phones/tablets hitting http://192.168.x.x:8081 can call the API)
 origins = [
     "http://localhost:5173",
     "http://localhost:8080",
@@ -30,6 +31,7 @@ origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"^http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$", 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

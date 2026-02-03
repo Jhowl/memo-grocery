@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchPurchases, fetchCategories } from '../api';
+import { fetchPurchases, fetchCategories, UPLOADS_URL } from '../api';
 import { Filter, ShoppingBag } from 'lucide-react';
 
 export function PurchaseList() {
@@ -73,7 +73,7 @@ export function PurchaseList() {
                                     <td className="p-4 font-medium text-slate-800 dark:text-white flex items-center gap-3">
                                         <div className="h-8 w-8 bg-slate-100 dark:bg-slate-700 rounded flex-shrink-0 overflow-hidden text-slate-400 dark:text-slate-500 flex items-center justify-center">
                                             {p.image_path ? (
-                                                <img src={`http://localhost:8000/uploads/${p.image_path}`} className="h-full w-full object-cover" />
+                                                <img src={`${UPLOADS_URL}/${p.image_path}`} className="h-full w-full object-cover" />
                                             ) : (
                                                 <ShoppingBag size={14} />
                                             )}
