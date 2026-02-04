@@ -7,6 +7,7 @@ export function Dashboard() {
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedCat, setSelectedCat] = useState('All');
+    const [showReference, setShowReference] = useState(false);
     const [expandedImage, setExpandedImage] = useState(null);
     const [editingProduct, setEditingProduct] = useState(null);
     const [expandedCategoryId, setExpandedCategoryId] = useState(null);
@@ -24,10 +25,25 @@ export function Dashboard() {
 
     useEffect(() => {
         loadData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Reload purchases when reference toggle changes.
+    useEffect(() => {
+        setLoading(true);
+        fetchPurchases({ includeReference: showReference })
+            .then((purchasesData) => {
+                setPurchases(purchasesData || []);
+                setLoading(false);
+            })
+            .catch(() => setLoading(false));
+    }, [showReference]);
+
     const loadData = () => {
-        return Promise.all([fetchPurchases(), fetchCategories()])
+        return Promise.all([
+            fetchPurchases({ includeReference: showReference }),
+            fetchCategories()
+        ])
             .then(([purchasesData, categoriesData]) => {
                 setPurchases(purchasesData || []);
                 setCategories(categoriesData || []);
@@ -97,22 +113,51 @@ export function Dashboard() {
 
     // Grouping and Sorting Logic
     const groupedPurchases = useMemo(() => {
-        // 1. Filter
+        const selectedId = selectedCat !== 'All' ? parseInt(selectedCat) : null;
+
+        const purchaseHasCategory = (p, categoryId) => {
+            if (p.category_id === categoryId) return true;
+            if (p.category && p.category.id === categoryId) return true;
+            if (Array.isArray(p.categories) && p.categories.some(c => c.id === categoryId)) return true;
+            return false;
+        };
+
+        // 1) Filter purchases (by selected category, but using tags too — not just primary category_id)
         let filtered = purchases;
-        if (selectedCat !== 'All') {
-            filtered = purchases.filter(p => p.category_id === parseInt(selectedCat));
+        if (selectedId != null && !Number.isNaN(selectedId)) {
+            filtered = purchases.filter(p => purchaseHasCategory(p, selectedId));
         }
 
-        // 2. Group
+        // 2) Group purchases by *all* category tags (many-to-many).
+        // This fixes cases like Soda items also tagged as Beverages.
         const groups = {};
         filtered.forEach(p => {
-            const catId = p.category_id || 'uncat';
-            if (!groups[catId]) groups[catId] = [];
-            groups[catId].push(p);
+            const tags = (Array.isArray(p.categories) && p.categories.length > 0)
+                ? p.categories
+                : (p.category ? [p.category] : []);
+
+            if (tags.length === 0) {
+                const catKey = 'uncat';
+                if (!groups[catKey]) groups[catKey] = [];
+                groups[catKey].push(p);
+                return;
+            }
+
+            tags.forEach(tag => {
+                const catKey = String(tag.id);
+                if (!groups[catKey]) groups[catKey] = [];
+                groups[catKey].push(p);
+            });
         });
 
-        // 3. Process (Sort & Diff)
-        return Object.keys(groups).map(catId => {
+        // If a specific category is selected, only show that group card.
+        const groupKeys = Object.keys(groups).filter(key => {
+            if (selectedId == null) return true;
+            return key === String(selectedId);
+        });
+
+        // 3) Process (Sort & Diff)
+        return groupKeys.map(catId => {
             const catName = categories.find(c => c.id === parseInt(catId))?.name || 'Uncategorized';
             const products = groups[catId];
 
@@ -155,6 +200,14 @@ export function Dashboard() {
                     </div>
 
                     <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                        <label className="flex items-center gap-2 text-xs text-slate-300 select-none">
+                            <input
+                                type="checkbox"
+                                checked={showReference}
+                                onChange={(e) => setShowReference(e.target.checked)}
+                            />
+                            Show regular/discount reference entries
+                        </label>
                         <div className="relative flex-1 min-w-[220px]">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <Search className="h-4 w-4 text-slate-500" />

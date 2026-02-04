@@ -41,9 +41,30 @@ export async function createPurchase(formData) {
     return res.json();
 }
 
-export async function fetchPurchases(categoryId = null) {
-    let url = `${API_URL}/purchases/`;
-    if (categoryId) url += `?category_id=${categoryId}`;
+export async function fetchPurchases(categoryIdOrOpts = null, maybeOpts = null) {
+    // Backwards compatible:
+    // - fetchPurchases() -> all
+    // - fetchPurchases(categoryId)
+    // New:
+    // - fetchPurchases({ categoryId, includeReference })
+    let categoryId = null;
+    let includeReference = false;
+
+    if (typeof categoryIdOrOpts === 'object' && categoryIdOrOpts !== null) {
+        categoryId = categoryIdOrOpts.categoryId ?? null;
+        includeReference = !!categoryIdOrOpts.includeReference;
+    } else {
+        categoryId = categoryIdOrOpts;
+        includeReference = !!(maybeOpts && maybeOpts.includeReference);
+    }
+
+    const params = new URLSearchParams();
+    if (categoryId) params.set('category_id', categoryId);
+    if (includeReference) params.set('include_reference', 'true');
+
+    const qs = params.toString();
+    const url = `${API_URL}/purchases/${qs ? `?${qs}` : ''}`;
+
     const res = await fetch(url);
     if (!res.ok) throw new Error('Failed to fetch purchases');
     return res.json();

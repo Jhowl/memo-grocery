@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Table
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Table, Boolean
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime
@@ -29,7 +29,17 @@ class Purchase(Base):
     name = Column(String, index=True) # E.g., "Kikkoman Soy Sauce"
     store = Column(String, index=True)
     date = Column(DateTime, default=datetime.utcnow)
+
+    # The price you actually paid.
     price = Column(Float)
+
+    # Optional discount metadata (for "price at register" vs "regular price").
+    regular_price = Column(Float, nullable=True)
+    discount_amount = Column(Float, nullable=True)
+
+    # "Reference" rows are hidden by default in the UI (e.g. a pre-discount comparison row).
+    is_reference = Column(Boolean, default=False, nullable=False)
+
     quantity = Column(Float) # The numeric amount (e.g. 500)
     unit = Column(String) # The unit string (e.g. "ml")
     

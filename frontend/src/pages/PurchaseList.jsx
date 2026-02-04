@@ -6,6 +6,7 @@ export function PurchaseList() {
     const [purchases, setPurchases] = useState([]);
     const [categories, setCategories] = useState([]);
     const [selectedCat, setSelectedCat] = useState('');
+    const [showReference, setShowReference] = useState(false);
 
     useEffect(() => {
         fetchCategories().then(setCategories).catch(console.error);
@@ -14,10 +15,12 @@ export function PurchaseList() {
 
     useEffect(() => {
         loadPurchases();
-    }, [selectedCat]);
+    }, [selectedCat, showReference]);
 
     function loadPurchases() {
-        fetchPurchases(selectedCat || null).then(setPurchases).catch(console.error);
+        fetchPurchases({ categoryId: selectedCat || null, includeReference: showReference })
+            .then(setPurchases)
+            .catch(console.error);
     }
 
     const formatImageLocation = (purchase) => {
@@ -37,7 +40,15 @@ export function PurchaseList() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <h2 className="text-3xl font-bold text-slate-800 dark:text-white">History & Compare</h2>
 
-                <div className="flex items-center gap-2 bg-white dark:bg-slate-800 p-2 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
+                <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-2 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
+                    <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 select-none">
+                        <input
+                            type="checkbox"
+                            checked={showReference}
+                            onChange={(e) => setShowReference(e.target.checked)}
+                        />
+                        Show reference
+                    </label>
                     <Filter size={18} className="text-slate-400 ml-2" />
                     <select
                         value={selectedCat}

@@ -82,6 +82,9 @@ async def create_purchase(
     store: str = Form(...),
     date: str = Form(...), # Frontend sends ISO string
     price: float = Form(...),
+    regular_price: Optional[float] = Form(None),
+    discount_amount: Optional[float] = Form(None),
+    create_reference_entry: Optional[bool] = Form(False),
     quantity: float = Form(...),
     unit: str = Form(...),
     category_id: int = Form(...),
@@ -127,6 +130,9 @@ async def create_purchase(
         store=store,
         date=date_obj,
         price=price,
+        regular_price=regular_price,
+        discount_amount=discount_amount,
+        is_reference=False,
         quantity=quantity,
         unit=unit,
         category_id=category_id
@@ -144,7 +150,7 @@ async def create_purchase(
     if not parsed_category_ids:
         parsed_category_ids = [category_id]
 
-    return crud.create_purchase(
+    created = crud.create_purchase(
         db=db,
         purchase=purchase_data,
         image_path=image_path,
@@ -156,9 +162,59 @@ async def create_purchase(
         category_ids=parsed_category_ids
     )
 
+    # Optional: also create a hidden "regular price" reference entry for comparisons.
+    if create_reference_entry and regular_price is not None:
+        reference = schemas.PurchaseCreate(
+            name=f"{name} (regular)",
+            store=store,
+            date=date_obj,
+            price=regular_price,
+            regular_price=None,
+            discount_amount=None,
+            is_reference=True,
+            quantity=quantity,
+            unit=unit,
+            category_id=category_id,
+        )
+        crud.create_purchase(
+            db=db,
+            purchase=reference,
+            image_path=image_path,
+            image_location_lat=image_location_lat,
+            image_location_lon=image_location_lon,
+            image_place=image_place,
+            image_store_guess=image_store_guess,
+            image_taken_at=image_taken_at,
+            category_ids=parsed_category_ids,
+        )
+
+    return created
+
 @app.get("/purchases/", response_model=List[schemas.Purchase])
-def read_purchases(skip: int = 0, limit: int = 100, category_id: int = None, db: Session = Depends(get_db)):
-    return crud.get_purchases(db, skip=skip, limit=limit, category_id=category_id)
+def read_purchases(
+    skip: int = 0,
+    limit: int = 100,
+    category_id: int | None = None,
+    category: str | None = None,
+    include_reference: bool = False,
+    db: Session = Depends(get_db),
+):
+    """List purchases.
+
+    Supports filtering by:
+    - category_id (preferred)
+    - category (case-insensitive substring match; for convenience)
+
+    By default, excludes reference rows (e.g. pre-discount comparison entries).
+    """
+    return crud.get_purchases(
+        db,
+        skip=skip,
+        limit=limit,
+        category_id=category_id,
+        category=category,
+        include_reference=include_reference,
+    )
 
 @app.put("/purchases/{purchase_id}", response_model=schemas.Purchase)
 async def update_purchase(
@@ -167,9 +223,13 @@ async def update_purchase(
     store: str = Form(...),
     date: str = Form(...),
     price: float = Form(...),
+    regular_price: Optional[float] = Form(None),
+    discount_amount: Optional[float] = Form(None),
+    is_reference: Optional[bool] = Form(False),
     quantity: float = Form(...),
     unit: str = Form(...),
     category_id: int = Form(...),
+    category_ids: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     from datetime import datetime
@@ -183,12 +243,32 @@ async def update_purchase(
         store=store,
         date=date_obj,
         price=price,
+        regular_price=regular_price,
+        discount_amount=discount_amount,
+        is_reference=is_reference,
         quantity=quantity,
         unit=unit,
         category_id=category_id
     )
 
-    db_purchase = crud.update_purchase(db=db, purchase_id=purchase_id, purchase=purchase_data)
+    parsed_category_ids = None
+    if category_ids:
+        try:
+            parsed = json.loads(category_ids)
+            if isinstance(parsed, list):
+                parsed_category_ids = [int(v) for v in parsed if str(v).isdigit()]
+        except Exception:
+            parsed_category_ids = [int(v) for v in category_ids.split(",") if v.strip().isdigit()]
+
+    if not parsed_category_ids:
+        parsed_category_ids = [category_id]
+
+    db_purchase = crud.update_purchase(
+        db=db,
+        purchase_id=purchase_id,
+        purchase=purchase_data,
+        category_ids=parsed_category_ids
+    )
     if not db_purchase:
         raise HTTPException(status_code=404, detail="Purchase not found")
     return db_purchase

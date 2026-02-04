@@ -23,6 +23,11 @@ class PurchaseBase(BaseModel):
     unit: str
     category_id: int
 
+    # Optional discount metadata
+    regular_price: Optional[float] = None
+    discount_amount: Optional[float] = None
+    is_reference: Optional[bool] = False
+
 class PurchaseCreate(PurchaseBase):
     pass
 

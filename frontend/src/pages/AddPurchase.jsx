@@ -16,6 +16,10 @@ export function AddPurchase() {
         store: '',
         date: new Date().toISOString().split('T')[0],
         price: '',
+        // discount metadata (optional)
+        regular_price: '',
+        discount_amount: '',
+        create_reference_entry: true,
         quantity: '',
         unit: 'g',
         category_id: '',
@@ -42,8 +46,11 @@ export function AddPurchase() {
     }
 
     const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        const { name, value, type, checked } = e.target;
+        setFormData(prev => ({
+            ...prev,
+            [name]: type === 'checkbox' ? checked : value
+        }));
     };
 
     const handleCategoryChange = (e) => {
@@ -127,9 +134,22 @@ export function AddPurchase() {
             Object.keys(formData).forEach(key => {
                 if (key === 'file' && formData[key]) {
                     data.append('file', formData[key]);
-                } else if (key !== 'file') {
-                    data.append(key, formData[key]);
+                    return;
                 }
+                if (key === 'file') return;
+
+                // Send optional numeric fields only when set.
+                if ((key === 'regular_price' || key === 'discount_amount') && (formData[key] === '' || formData[key] == null)) {
+                    return;
+                }
+
+                // Booleans need to be sent as strings for FormData/FastAPI
+                if (key === 'create_reference_entry') {
+                    data.append(key, formData[key] ? 'true' : 'false');
+                    return;
+                }
+
+                data.append(key, formData[key]);
             });
             if (selectedCategories.length > 0) {
                 data.append('category_ids', JSON.stringify(selectedCategories));
@@ -248,9 +268,10 @@ export function AddPurchase() {
                 {/* Price & Quantity */}
                 <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-700 transition-colors">
                     <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">Pricing Details</h3>
+
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="col-span-1">
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Price</label>
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Price (paid)</label>
                             <input
                                 type="number" step="0.01"
                                 required
@@ -294,6 +315,46 @@ export function AddPurchase() {
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/40 p-3">
+                        <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                            <input
+                                type="checkbox"
+                                name="create_reference_entry"
+                                checked={!!formData.create_reference_entry}
+                                onChange={handleInputChange}
+                            />
+                            This item has a sale/rebate — save a hidden “regular price” reference entry
+                        </label>
+
+                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Regular price (optional)</label>
+                                <input
+                                    type="number" step="0.01"
+                                    name="regular_price"
+                                    value={formData.regular_price}
+                                    onChange={handleInputChange}
+                                    className="w-full px-3 py-2 border dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-white transition-colors"
+                                    placeholder="e.g. 44.89"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Discount / Rebate amount (optional)</label>
+                                <input
+                                    type="number" step="0.01"
+                                    name="discount_amount"
+                                    value={formData.discount_amount}
+                                    onChange={handleInputChange}
+                                    className="w-full px-3 py-2 border dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-white transition-colors"
+                                    placeholder="e.g. 10.00"
+                                />
+                            </div>
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500">
+                            “Price (paid)” is what you actually paid. If you fill “Regular price” and keep the checkbox on, we’ll create a hidden comparison row so you don’t have to manually add/remove it later.
+                        </p>
                     </div>
                 </div>
 
